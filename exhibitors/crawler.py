@@ -20,7 +20,6 @@ def download_image(img_url, folder_path, file_name):
         with open(file_path, 'wb') as img_file:
             img_file.write(response.content)
 
-        print(f"Image saved to: {file_path}")
     except requests.exceptions.RequestException as e:
         print(f"Failed to download image: {e}")
 
@@ -44,35 +43,47 @@ async def main():
 
     page_html = await get_page_content(page)
 
-    url_elements = page_html.select("#dtSearch > tbody > div > div > a.card-image")
+    last_pagination = int(page_html.select("#dtSearch_paginate > span > a.paginate_button")[-1].get_text(strip=True))
 
-    for element in url_elements:
-        href = element['href']
+    for current_pagination in range(1, last_pagination + 1):
+        loop_page_html = await get_page_content(page)
 
-        full_url = urljoin(base_url, href)
+        url_elements = loop_page_html.select("#dtSearch > tbody > div > div > a.card-image")
 
-        await page.goto(full_url, waitUntil='networkidle0')
+        for element in url_elements:
 
-        new_page_html = await get_page_content(page)
+            href = element['href']
 
-        brand_img = new_page_html.select_one("#post-2 > div > div > div > div.container.brand > div.ExhibitorPageContent.row > div.col-xs-12.col-sm-6.col-md-4 > div:nth-child(1) > a > img")['src']
-        brand_name = new_page_html.select_one("#post-2 > div > div > div > div.container.brand > div.ExhibitorPageContent.row > div.col-xs-12.col-sm-6.col-md-4 > div.name.flex-grow.sorting_1 > h4 > a").get_text(strip=True)
-        brand_hall = new_page_html.select("#StandNo")[0].get_text(strip=True)
-        brand_stand = new_page_html.select("#StandNo")[1].get_text(strip=True)
-        brand_phone = new_page_html.select_one("#ContactPhone").get_text(strip=True)
-        brand_url = new_page_html.select_one("#post-2 > div > div > div > div.container.brand > div.ExhibitorPageContent.row > div.col-xs-12.col-sm-6.col-md-4 > div.row-visit-website-button > a")["href"]
+            full_url = urljoin(base_url, href)
 
-        print(brand_img)
-        print(brand_name)
-        print(brand_hall)
-        print(brand_stand)
-        print(brand_phone)
-        print(brand_url)
+            new_page = await browser.newPage()
 
-        download_image(brand_img, desktop_folder, brand_name)
+            await new_page.goto(full_url, waitUntil='networkidle0')
 
-    await asyncio.sleep(1000)
+            new_page_html = await get_page_content(new_page)
 
+            brand_img = new_page_html.select_one("#post-2 > div > div > div > div.container.brand > div.ExhibitorPageContent.row > div.col-xs-12.col-sm-6.col-md-4 > div:nth-child(1) > a > img")['src']
+            brand_name = new_page_html.select_one("#post-2 > div > div > div > div.container.brand > div.ExhibitorPageContent.row > div.col-xs-12.col-sm-6.col-md-4 > div.name.flex-grow.sorting_1 > h4 > a").get_text(strip=True)
+            brand_hall = new_page_html.select("#StandNo")[0].get_text(strip=True)
+            brand_stand = new_page_html.select("#StandNo")[1].get_text(strip=True)
+            brand_phone = new_page_html.select_one("#ContactPhone").get_text(strip=True)
+            brand_url = new_page_html.select_one("#post-2 > div > div > div > div.container.brand > div.ExhibitorPageContent.row > div.col-xs-12.col-sm-6.col-md-4 > div.row-visit-website-button > a")["href"]
+
+            download_image(brand_img, desktop_folder, brand_name)
+
+            print(brand_img, brand_name, brand_hall, brand_stand, brand_phone, brand_phone, brand_url)
+            print("--------------------------------------")
+
+            await new_page.close()
+
+        await asyncio.sleep(5)
+
+        next_page = loop_page_html.select_one("#dtSearch_paginate > span > a.paginate_button.current").find_next_sibling()
+
+        next_page_selector = f'a[data-dt-idx="{next_page["data-dt-idx"]}"]'
+
+        await page.click(next_page_selector)
+        
     # 브라우저 종료
     await browser.close()
 
